@@ -174,9 +174,14 @@ class ChartManager {
     }
     
     initCharts() {
-        // RV 차트
-        const rvCtx = document.getElementById('rvChart').getContext('2d');
-        this.rvChart = new Chart(rvCtx, {
+        try {
+            // RV 차트
+            const rvCanvas = document.getElementById('rvChart');
+            if (!rvCanvas) {
+                throw new Error('RV 차트 캔버스를 찾을 수 없습니다');
+            }
+            const rvCtx = rvCanvas.getContext('2d');
+            this.rvChart = new Chart(rvCtx, {
             type: 'line',
             data: {
                 labels: [],
@@ -213,9 +218,13 @@ class ChartManager {
             }
         });
         
-        // 스펙트럼 차트
-        const specCtx = document.getElementById('spectrumChart').getContext('2d');
-        this.spectrumChart = new Chart(specCtx, {
+            // 스펙트럼 차트
+            const specCanvas = document.getElementById('spectrumChart');
+            if (!specCanvas) {
+                throw new Error('스펙트럼 차트 캔버스를 찾을 수 없습니다');
+            }
+            const specCtx = specCanvas.getContext('2d');
+            this.spectrumChart = new Chart(specCtx, {
             type: 'line',
             data: {
                 labels: [],
@@ -300,12 +309,21 @@ class ChartManager {
             }
         });
         
-        // 궤도 차트 초기화
-        this.initOrbitChart();
+            // 궤도 차트 초기화
+            this.initOrbitChart();
+            
+            console.log('모든 차트 초기화 완료');
+        } catch (error) {
+            console.error('차트 초기화 중 오류:', error);
+            throw error;
+        }
     }
     
     initOrbitChart() {
         const canvas = document.getElementById('orbitChart');
+        if (!canvas) {
+            throw new Error('궤도 차트 캔버스를 찾을 수 없습니다');
+        }
         this.orbitCtx = canvas.getContext('2d');
         this.orbitCanvas = canvas;
         
@@ -317,12 +335,21 @@ class ChartManager {
     }
     
     updateRvChart(t_list, rv_list) {
+        if (!this.rvChart) {
+            console.error('RV 차트가 초기화되지 않았습니다');
+            return;
+        }
         this.rvChart.data.labels = t_list;
         this.rvChart.data.datasets[0].data = rv_list;
         this.rvChart.update('none');
     }
     
     updateSpectrumChart(lambda_shift, lambda_0) {
+        if (!this.spectrumChart) {
+            console.error('스펙트럼 차트가 초기화되지 않았습니다');
+            return;
+        }
+        
         // 흡수 스펙트럼 데이터 생성
         const wavelengths = [];
         const intensities = [];
@@ -434,6 +461,11 @@ class ChartManager {
     }
     
     drawOrbit(simulator) {
+        if (!this.orbitCtx || !this.orbitCanvas) {
+            console.error('궤도 차트가 초기화되지 않았습니다');
+            return;
+        }
+        
         const ctx = this.orbitCtx;
         const canvas = this.orbitCanvas;
         const rect = canvas.getBoundingClientRect();
@@ -583,46 +615,84 @@ let animationId;
 
 // Chart.js 로딩 대기 함수
 function waitForChart() {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         if (typeof Chart !== 'undefined') {
+            console.log('Chart.js 이미 로딩됨');
             resolve();
-        } else {
-            const checkChart = setInterval(() => {
-                if (typeof Chart !== 'undefined') {
-                    clearInterval(checkChart);
-                    resolve();
-                }
-            }, 100);
+            return;
         }
+        
+        let attempts = 0;
+        const maxAttempts = 100; // 10초 대기
+        
+        const checkChart = setInterval(() => {
+            attempts++;
+            if (typeof Chart !== 'undefined') {
+                console.log('Chart.js 로딩 완료 (시도 횟수:', attempts, ')');
+                clearInterval(checkChart);
+                resolve();
+            } else if (attempts >= maxAttempts) {
+                console.error('Chart.js 로딩 시간 초과 (시도 횟수:', attempts, ')');
+                clearInterval(checkChart);
+                reject(new Error('Chart.js 로딩 실패'));
+            }
+        }, 100);
     });
 }
 
 // 초기화
-document.addEventListener('DOMContentLoaded', async function() {
-    // Chart.js 로딩 대기
-    await waitForChart();
+document.addEventListener('DOMContentLoaded', function() {
+    // Chart.js 로딩을 기다리는 함수
+    function initializeApp() {
+        try {
+            console.log('RV Exoplanet Simulator 초기화 시작');
+            
+            // Chart.js 로딩 확인
+            if (typeof Chart === 'undefined') {
+                console.log('Chart.js 로딩 대기 중...');
+                setTimeout(initializeApp, 100);
+                return;
+            }
+            
+            // 시뮬레이터 초기화
+            simulator = new RvSimulator();
+            console.log('시뮬레이터 초기화 완료');
+            
+            // 차트 매니저 초기화
+            chartManager = new ChartManager();
+            console.log('차트 매니저 초기화 완료');
+        
+            // 슬라이더 값 표시
+            const baryBoostSlider = document.getElementById('bary_boost');
+            const baryBoostValue = document.getElementById('bary_boost_value');
+            
+            if (baryBoostSlider && baryBoostValue) {
+                baryBoostSlider.addEventListener('input', function() {
+                    baryBoostValue.textContent = this.value;
+                    simulator.bary_boost = parseFloat(this.value);
+                });
+            }
+            
+            // 체크박스 이벤트
+            const schematicCheckbox = document.getElementById('schematic');
+            if (schematicCheckbox) {
+                schematicCheckbox.addEventListener('change', function() {
+                    simulator.schematic = this.checked;
+                });
+            }
+            
+            // 초기 차트 업데이트
+            updateCharts();
+            
+            console.log('RV Exoplanet Simulator 초기화 완료');
+        } catch (error) {
+            console.error('초기화 중 오류 발생:', error);
+            document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: red;"><h2>초기화 오류</h2><p>페이지를 새로고침해주세요.</p></div>';
+        }
+    }
     
-    simulator = new RvSimulator();
-    chartManager = new ChartManager();
-    
-    // 슬라이더 값 표시
-    const baryBoostSlider = document.getElementById('bary_boost');
-    const baryBoostValue = document.getElementById('bary_boost_value');
-    
-    baryBoostSlider.addEventListener('input', function() {
-        baryBoostValue.textContent = this.value;
-        simulator.bary_boost = parseFloat(this.value);
-    });
-    
-    // 체크박스 이벤트
-    document.getElementById('schematic').addEventListener('change', function() {
-        simulator.schematic = this.checked;
-    });
-    
-    // 초기 차트 업데이트
-    updateCharts();
-    
-    console.log('RV Exoplanet Simulator 초기화 완료');
+    // 초기화 시작
+    initializeApp();
 });
 
 // 파라미터 적용

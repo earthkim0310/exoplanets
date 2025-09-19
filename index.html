@@ -381,29 +381,42 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
     <script>
-        // Chart.js 로딩 확인 및 대체 CDN
+        // Chart.js 로딩 함수
         function loadChartJS() {
-            if (typeof Chart === 'undefined') {
-                console.log('Chart.js 로딩 실패, 대체 CDN 시도');
-                const script = document.createElement('script');
-                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.min.js';
-                script.onload = function() {
-                    console.log('Chart.js 대체 CDN 로딩 완료');
+            return new Promise((resolve, reject) => {
+                // 첫 번째 CDN 시도
+                const script1 = document.createElement('script');
+                script1.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js';
+                script1.onload = function() {
+                    console.log('Chart.js 로딩 완료 (jsdelivr)');
+                    resolve();
                 };
-                script.onerror = function() {
-                    console.error('Chart.js 로딩 완전 실패');
-                    document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: red;"><h2>Chart.js 로딩 실패</h2><p>인터넷 연결을 확인하고 페이지를 새로고침해주세요.</p></div>';
+                script1.onerror = function() {
+                    console.log('jsdelivr CDN 실패, cdnjs 시도');
+                    
+                    // 두 번째 CDN 시도
+                    const script2 = document.createElement('script');
+                    script2.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.min.js';
+                    script2.onload = function() {
+                        console.log('Chart.js 로딩 완료 (cdnjs)');
+                        resolve();
+                    };
+                    script2.onerror = function() {
+                        console.error('모든 CDN 실패');
+                        reject(new Error('Chart.js 로딩 실패'));
+                    };
+                    document.head.appendChild(script2);
                 };
-                document.head.appendChild(script);
-            } else {
-                console.log('Chart.js 로딩 완료');
-            }
+                document.head.appendChild(script1);
+            });
         }
         
-        // 페이지 로드 시 Chart.js 확인
-        window.addEventListener('load', loadChartJS);
+        // Chart.js 로딩 시작
+        loadChartJS().catch(error => {
+            console.error('Chart.js 로딩 실패:', error);
+            document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: red;"><h2>Chart.js 로딩 실패</h2><p>인터넷 연결을 확인하고 페이지를 새로고침해주세요.</p></div>';
+        });
     </script>
     <script src="rv_simulator.js"></script>
 </body>
