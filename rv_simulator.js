@@ -222,33 +222,79 @@ class ChartManager {
                 datasets: [{
                     label: 'Spectrum',
                     data: [],
-                    borderColor: 'rgb(54, 162, 235)',
-                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                    tension: 0.1
+                    borderColor: 'rgba(0, 0, 0, 0.8)',
+                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                    tension: 0.1,
+                    fill: true,
+                    pointRadius: 0,
+                    pointHoverRadius: 3,
+                    borderWidth: 2
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
                 scales: {
                     x: {
                         title: {
                             display: true,
-                            text: 'Wavelength (nm)'
+                            text: 'Wavelength (nm)',
+                            color: 'white',
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(255,255,255,0.3)'
+                        },
+                        ticks: {
+                            color: 'white',
+                            font: {
+                                size: 10
+                            }
                         }
                     },
                     y: {
                         title: {
                             display: true,
-                            text: 'Intensity'
+                            text: 'Intensity (Relative)',
+                            color: 'white',
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            }
                         },
                         min: 0,
-                        max: 1
+                        max: 1.1,
+                        grid: {
+                            color: 'rgba(255,255,255,0.3)'
+                        },
+                        ticks: {
+                            color: 'white',
+                            font: {
+                                size: 10
+                            }
+                        }
                     }
                 },
                 plugins: {
                     legend: {
                         display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        titleColor: 'white',
+                        bodyColor: 'white',
+                        callbacks: {
+                            label: function(context) {
+                                return `λ = ${context.parsed.x.toFixed(3)} nm, I = ${context.parsed.y.toFixed(3)}`;
+                            }
+                        }
                     }
                 }
             }
@@ -277,19 +323,45 @@ class ChartManager {
     }
     
     updateSpectrumChart(lambda_shift, lambda_0) {
-        // 스펙트럼 데이터 생성 (간단한 가우시안 프로파일)
+        // 흡수 스펙트럼 데이터 생성
         const wavelengths = [];
         const intensities = [];
         const range = 2.0; // nm 범위
-        const points = 100;
+        const points = 400;
         
         for (let i = 0; i < points; i++) {
             const wl = lambda_0 - range/2 + (range * i / points);
             wavelengths.push(wl);
             
-            // 기본 스펙트럼 (가우시안 프로파일)
-            const sigma = 0.1;
-            const intensity = Math.exp(-Math.pow(wl - lambda_0, 2) / (2 * sigma * sigma));
+            // 연속 스펙트럼 (1.0)에서 흡수선을 뺀 형태
+            let intensity = 1.0; // 연속 스펙트럼 기본값
+            
+            // 중심 파장에서 흡수선 (가우시안 형태의 감소)
+            const sigma = 0.02; // 흡수선 폭 (매우 좁게)
+            const absorption_depth = 0.9; // 흡수 깊이 (매우 깊게)
+            const absorption = absorption_depth * Math.exp(-Math.pow(wl - lambda_0, 2) / (2 * sigma * sigma));
+            intensity -= absorption;
+            
+            // 도플러 이동된 흡수선 (현재 위치) - 더 강하게 표시
+            const doppler_sigma = 0.015; // 도플러 선은 더 좁게
+            const doppler_absorption = absorption_depth * Math.exp(-Math.pow(wl - lambda_shift, 2) / (2 * doppler_sigma * doppler_sigma));
+            intensity -= doppler_absorption;
+            
+            // 추가적인 흡수선들 (더 현실적인 스펙트럼)
+            const additional_lines = [
+                { center: lambda_0 - 0.1, depth: 0.3, width: 0.01 },
+                { center: lambda_0 + 0.1, depth: 0.2, width: 0.01 },
+                { center: lambda_0 - 0.3, depth: 0.4, width: 0.015 },
+                { center: lambda_0 + 0.3, depth: 0.35, width: 0.015 }
+            ];
+            
+            additional_lines.forEach(line => {
+                const additional_absorption = line.depth * Math.exp(-Math.pow(wl - line.center, 2) / (2 * line.width * line.width));
+                intensity -= additional_absorption;
+            });
+            
+            // 최소값 제한
+            intensity = Math.max(0.02, intensity);
             intensities.push(intensity);
         }
         
@@ -297,22 +369,66 @@ class ChartManager {
         this.spectrumChart.data.datasets[0].data = intensities;
         this.spectrumChart.update('none');
         
-        // 도플러 이동된 선 표시
-        if (this.spectrumChart.options.plugins.annotation) {
-            this.spectrumChart.options.plugins.annotation.annotations = {
-                dopplerLine: {
-                    type: 'line',
-                    xMin: lambda_shift,
-                    xMax: lambda_shift,
-                    borderColor: 'red',
-                    borderWidth: 3,
-                    label: {
-                        content: `λ = ${lambda_shift.toFixed(3)} nm`,
-                        enabled: true
-                    }
-                }
-            };
-        }
+        // 도플러 이동된 선을 수직선으로 표시
+        this.drawDopplerLine(lambda_shift, lambda_0);
+    }
+    
+    drawDopplerLine(lambda_shift, lambda_0) {
+        // 스펙트럼 차트에 도플러 이동된 선 그리기
+        const chart = this.spectrumChart;
+        const ctx = chart.ctx;
+        const chartArea = chart.chartArea;
+        
+        // 기존 선 제거를 위해 차트 다시 그리기
+        chart.draw();
+        
+        // 도플러 이동된 선 그리기
+        const x = chart.scales.x.getPixelForValue(lambda_shift);
+        const y1 = chartArea.top;
+        const y2 = chartArea.bottom;
+        
+        // 빨간색 점선으로 도플러 이동된 선 표시
+        ctx.save();
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 4;
+        ctx.setLineDash([8, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x, y1);
+        ctx.lineTo(x, y2);
+        ctx.stroke();
+        ctx.restore();
+        
+        // 라벨 그리기 (배경과 함께)
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(x - 40, y1 - 25, 80, 20);
+        ctx.fillStyle = 'red';
+        ctx.font = 'bold 11px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(`λ = ${lambda_shift.toFixed(3)} nm`, x, y1 - 10);
+        ctx.restore();
+        
+        // 중심 파장도 표시 (비교용)
+        const center_x = chart.scales.x.getPixelForValue(lambda_0);
+        ctx.save();
+        ctx.strokeStyle = 'yellow';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 2]);
+        ctx.beginPath();
+        ctx.moveTo(center_x, y1);
+        ctx.lineTo(center_x, y2);
+        ctx.stroke();
+        ctx.restore();
+        
+        // 중심 파장 라벨
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(center_x - 35, y2 + 5, 70, 20);
+        ctx.fillStyle = 'yellow';
+        ctx.font = 'bold 10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(`λ₀ = ${lambda_0.toFixed(3)} nm`, center_x, y2 + 18);
+        ctx.restore();
     }
     
     drawOrbit(simulator) {
