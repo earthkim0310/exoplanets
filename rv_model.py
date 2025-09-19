@@ -1,4 +1,4 @@
-# rv_model.py — pure Python model (no GUI)
+# rv_model.py — physics model
 import math
 import numpy as np
 
@@ -13,6 +13,9 @@ class RVModel:
     def __init__(self, Ms_solar=1.0, Mp_jup=1.0, inc_deg=60.0,
                  period_days=10.0, ecc=0.0, omega_deg=0.0,
                  t0_days=0.0, gamma_ms=0.0, base_lambda_nm=656.0):
+        self.set_params(Ms_solar, Mp_jup, inc_deg, period_days, ecc, omega_deg, t0_days, gamma_ms, base_lambda_nm)
+
+    def set_params(self, Ms_solar, Mp_jup, inc_deg, period_days, ecc, omega_deg, t0_days, gamma_ms, base_lambda_nm):
         self.Ms = Ms_solar * M_SUN
         self.Mp = Mp_jup   * M_JUP
         self.i  = math.radians(inc_deg)
@@ -24,7 +27,6 @@ class RVModel:
         self.gamma = gamma_ms
         self.lam0  = base_lambda_nm
 
-    # Orbital helpers
     def mean_anomaly(self, t):
         n = 2.0*math.pi/self.P
         return (n*(t-self.t0)) % (2.0*math.pi)
@@ -51,7 +53,6 @@ class RVModel:
                               math.sqrt(1-e)*math.cos(E/2.0))
 
     def rv(self, t):
-        """Star line-of-sight velocity [m/s]"""
         M  = self.mean_anomaly(t)
         E  = self.eccentric_anomaly(M)
         nu = self.true_anomaly(E)
@@ -69,7 +70,6 @@ class RVModel:
         return self.lam0 * (1.0 + v / C)
 
     def orbit_xy(self, t_array, scale=1.0):
-        """Return star/planet positions projected to sky plane for visualization."""
         mu = G * (self.Ms + self.Mp)
         a_s = self.a * (self.Mp / (self.Ms + self.Mp))
         a_p = self.a * (self.Ms / (self.Ms + self.Mp))
@@ -82,10 +82,11 @@ class RVModel:
             fac = (1.0 - self.e**2) / (1.0 + self.e*math.cos(nu))
             r_s = a_s * fac * scale
             r_p = a_p * fac * scale
+            # projection: x toward observer, plot y (vertical), z (horizontal) on sky plane
             xsb = -r_s * math.cos(theta) * math.sin(self.i)
             ysb = -r_s * math.sin(theta)
             xpb =  r_p * math.cos(theta) * math.sin(self.i)
             ypb =  r_p * math.sin(theta)
-            xs.append(ysb); ys.append(xsb)  # rotate for plotting (y_sky, +LOS)
+            xs.append(ysb); ys.append(xsb)
             xp.append(ypb); yp.append(xpb)
         return np.array(xs), np.array(ys), np.array(xp), np.array(yp)
