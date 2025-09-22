@@ -2,7 +2,12 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
 import time
+
+# Configure matplotlib to use Agg backend for better compatibility
+matplotlib.use('Agg')
+plt.style.use('default')
 
 # Page config
 st.set_page_config(page_title="RV Exoplanet Simulator", layout="wide")
@@ -174,7 +179,10 @@ col1, col2 = st.columns([1, 1])
 # Orbit plot
 with col1:
     st.subheader("🪐 궤도 운동")
-    fig1, ax1 = plt.subplots(figsize=(8, 8))
+    
+    # Create figure with explicit size and DPI
+    fig1 = plt.figure(figsize=(8, 8), dpi=100)
+    ax1 = fig1.add_subplot(111)
     
     # Plot full orbits
     f_full = np.linspace(0, 2*np.pi, 1000)
@@ -201,16 +209,19 @@ with col1:
     ax1.scatter(0, 0, c='black', s=100, label='질량중심', zorder=5, marker='x')
     
     # Add velocity vectors
-    if abs(vr_current) > 0.1:  # Only show if significant
-        scale = 0.5 / K  # Scale factor for velocity vectors
-        if vr_current > 0:
-            ax1.arrow(x_star/AU, y_star/AU, 0, scale*vr_current, head_width=0.05, 
-                     head_length=0.03, fc='red', ec='red', alpha=0.8, linewidth=2)
-            ax1.text(x_star/AU + 0.1, y_star/AU + 0.1, '멀어짐', color='red', fontweight='bold')
-        else:
-            ax1.arrow(x_star/AU, y_star/AU, 0, scale*vr_current, head_width=0.05, 
-                     head_length=0.03, fc='blue', ec='blue', alpha=0.8, linewidth=2)
-            ax1.text(x_star/AU + 0.1, y_star/AU + 0.1, '가까워짐', color='blue', fontweight='bold')
+    try:
+        if abs(vr_current) > 0.1:  # Only show if significant
+            scale = 0.5 / max(K, 1)  # Scale factor for velocity vectors
+            if vr_current > 0:
+                ax1.arrow(x_star/AU, y_star/AU, 0, scale*abs(vr_current), head_width=0.05, 
+                         head_length=0.03, fc='red', ec='red', alpha=0.8, linewidth=2)
+                ax1.text(x_star/AU + 0.1, y_star/AU + 0.1, '멀어짐', color='red', fontweight='bold')
+            else:
+                ax1.arrow(x_star/AU, y_star/AU, 0, -scale*abs(vr_current), head_width=0.05, 
+                         head_length=0.03, fc='blue', ec='blue', alpha=0.8, linewidth=2)
+                ax1.text(x_star/AU + 0.1, y_star/AU + 0.1, '가까워짐', color='blue', fontweight='bold')
+    except:
+        pass  # Skip velocity vectors if there's an issue
     
     ax1.set_xlabel('X (AU)')
     ax1.set_ylabel('Y (AU)')
@@ -220,16 +231,25 @@ with col1:
     ax1.set_title('궤도 운동 (하늘에서 본 모습)')
     
     # Set reasonable axis limits
-    max_orbit = max(a_planet, a_star) * (1 + e) / AU * 1.2
-    ax1.set_xlim(-max_orbit, max_orbit)
-    ax1.set_ylim(-max_orbit, max_orbit)
+    try:
+        max_orbit = max(a_planet, a_star) * (1 + e) / AU * 1.2
+        ax1.set_xlim(-max_orbit, max_orbit)
+        ax1.set_ylim(-max_orbit, max_orbit)
+    except:
+        ax1.set_xlim(-2, 2)
+        ax1.set_ylim(-2, 2)
     
-    st.pyplot(fig1, use_container_width=True)
+    st.pyplot(fig1)
+    plt.close(fig1)
 
 # RV curve and spectrum
 with col2:
     st.subheader("📈 시선속도 곡선")
-    fig2, (ax2, ax3) = plt.subplots(2, 1, figsize=(8, 10))
+    
+    # Create figure with explicit size and DPI
+    fig2 = plt.figure(figsize=(8, 10), dpi=100)
+    ax2 = fig2.add_subplot(2, 1, 1)
+    ax3 = fig2.add_subplot(2, 1, 2)
     
     # RV curve
     t_days_extended = t_extended / (24 * 3600)
@@ -314,7 +334,8 @@ with col2:
              bbox=dict(boxstyle='round', facecolor=text_color, alpha=0.2))
     
     plt.tight_layout()
-    st.pyplot(fig2, use_container_width=True)
+    st.pyplot(fig2)
+    plt.close(fig2)
 
 # Auto-refresh for animation
 if use_animation and st.session_state.is_playing:
