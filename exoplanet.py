@@ -9,20 +9,18 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 
-# 한글 폰트 설정
-try:
-    # macOS에서 사용 가능한 한글 폰트들 시도
-    font_candidates = ['AppleGothic', 'Malgun Gothic', 'NanumGothic', 'DejaVu Sans']
-    for font in font_candidates:
-        if font in [f.name for f in fm.fontManager.ttflist]:
-            plt.rcParams['font.family'] = font
-            break
-    else:
-        plt.rcParams['font.family'] = 'DejaVu Sans'
-except:
-    plt.rcParams['font.family'] = 'DejaVu Sans'
+# 한글 폰트 설정 (강제 설정)
+import platform
+import os
+
+# macOS에서 한글 폰트 강제 설정
+if platform.system() == 'Darwin':  # macOS
+    plt.rcParams['font.family'] = ['AppleGothic', 'Malgun Gothic', 'NanumGothic', 'DejaVu Sans']
+else:
+    plt.rcParams['font.family'] = ['Malgun Gothic', 'NanumGothic', 'DejaVu Sans']
 
 plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 10
 
 # ---------- 상수/단위 ----------
 G_SI = 6.67430e-11                # [m^3 kg^-1 s^-2]
@@ -345,18 +343,21 @@ with col3:
     st.subheader("흡수선 스펙트럼 (도플러 이동)")
     fig3, ax3 = plt.subplots(figsize=(5.6, 4.0))
     
-    # 무지개색 배경 생성 (더 간단한 방법)
+    # 무지개색 배경 생성
     lam_norm = (lam - lam_min) / (lam_max - lam_min)  # 0~1 정규화
     
-    # 연속 스펙트럼을 무지개색으로 표시 (간격을 두고)
-    step = max(1, len(lam) // 100)  # 100개 구간으로 나누기
+    # 연속 스펙트럼을 무지개색으로 표시 (더 명확하게)
+    step = max(1, len(lam) // 50)  # 50개 구간으로 나누기
     for i in range(0, len(lam)-step, step):
         color = plt.cm.rainbow(lam_norm[i])
         ax3.plot(lam[i:i+step+1], line_conv[i:i+step+1], 
-                color=color, lw=3, alpha=0.7)
+                color=color, lw=4, alpha=0.8)
     
-    # 흡수선 강조 (검은색, 굵게)
-    ax3.plot(lam, line_conv, 'k-', lw=2, alpha=1.0, label="흡수선")
+    # 흡수선 강조 (검은색, 매우 굵게)
+    ax3.plot(lam, line_conv, 'k-', lw=3, alpha=1.0, label="흡수선")
+    
+    # 배경을 더 밝게 하기 위해 연속 스펙트럼을 다시 그리기
+    ax3.fill_between(lam, line_conv, 1.0, alpha=0.3, color='white')
     
     # 기준선들
     ax3.axvline(lambda0, ls="--", color='gray', alpha=0.7, label="정지 파장 λ₀")
