@@ -30,22 +30,15 @@ def rv_amplitude(a_AU, M_star, M_planet, e, i):
     return K
 
 def simple_rv(t, a_AU, M_star, M_planet, e, omega, i, gamma=0):
-    """Simplified RV calculation using circular approximation for high e"""
+    """Simplified RV calculation"""
     P = orbital_period(a_AU, M_star, M_planet)
     P_sec = P * 365.25 * 24 * 3600
     
     # Use simple sine wave for demonstration
-    if e < 0.1:  # Nearly circular
-        f = 2 * np.pi * t / P_sec
-        K = rv_amplitude(a_AU, M_star, M_planet, e, i)
-        vr = K * np.cos(f + omega) + gamma
-        return vr, f
-    else:  # High eccentricity - use approximation
-        f = 2 * np.pi * t / P_sec
-        K = rv_amplitude(a_AU, M_star, M_planet, e, i)
-        # Add eccentricity effect
-        vr = K * (np.cos(f + omega) + e * np.cos(omega)) + gamma
-        return vr, f
+    f = 2 * np.pi * t / P_sec
+    K = rv_amplitude(a_AU, M_star, M_planet, e, i)
+    vr = K * (np.cos(f + omega) + e * np.cos(omega)) + gamma
+    return vr, f
 
 # UI
 st.title("🌌 RV Exoplanet Simulator")
@@ -85,14 +78,14 @@ if use_animation:
     
     # Initialize session state
     if 'playing' not in st.session_state:
-    st.session_state.playing = False
+        st.session_state.playing = False
     if 'start_time' not in st.session_state:
         st.session_state.start_time = time.time()
     
     col1, col2 = st.sidebar.columns(2)
     if col1.button("Play/Pause"):
-            st.session_state.playing = not st.session_state.playing
-            if st.session_state.playing:
+        st.session_state.playing = not st.session_state.playing
+        if st.session_state.playing:
             st.session_state.start_time = time.time()
     
     if col2.button("Reset"):
