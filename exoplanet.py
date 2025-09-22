@@ -198,6 +198,8 @@ P_s = P_year * SEC_PER_YEAR
 if use_play and st.session_state.playing:
     elapsed = (time.time() - st.session_state.t0) * speed
     phase = (st.session_state.phase0 + (elapsed / P_s)) % 1.0
+    # 위상 표시
+    st.write(f"현재 위상: {phase:.3f}")
 else:
     # 수동: 위상 슬라이더
     phase = st.slider("현재 위상 φ (0~1, φ=0이 근일점 통과)", 0.0, 1.0, 0.1, 0.001)
@@ -269,7 +271,12 @@ pix = np.arange(lam.size)
 pix_scale_nm = (lam_max - lam_min) / lam.size
 sigma_nm = instr_sigma_pix * pix_scale_nm
 
-line = 1.0 - line_depth * gaussian(lam, lambda_now, sigma_nm)
+# 연속 스펙트럼 (무지개색 배경)
+continuum = np.ones_like(lam)
+# 흡수선 (검은색으로 표시하기 위해 1에서 빼기)
+absorption_line = line_depth * gaussian(lam, lambda_now, sigma_nm)
+line = continuum - absorption_line
+
 # 분광기 컨볼루션
 line_conv = instrument_broadening(line, R, lam)
 # 잡음 추가(선택)
@@ -321,25 +328,49 @@ with col2:
 with col3:
     st.subheader("흡수선 스펙트럼 (도플러 이동)")
     fig3, ax3 = plt.subplots(figsize=(5.6, 4.0))
-    ax3.plot(lam, line_conv, lw=1.3)
-    ax3.axvline(lambda0, ls="--", alpha=0.5, label="정지 파장 λ₀")
-    ax3.axvline(lambda_now, ls="--", alpha=0.9, label="현재 중심 파장")
+    
+    # 무지개색 배경 생성
+    lam_norm = (lam - lam_min) / (lam_max - lam_min)  # 0~1 정규화
+    colors = plt.cm.rainbow(lam_norm)
+    
+    # 연속 스펙트럼을 무지개색으로 표시
+    for i in range(len(lam)-1):
+        ax3.plot([lam[i], lam[i+1]], [line_conv[i], line_conv[i+1]], 
+                color=colors[i], lw=2, alpha=0.8)
+    
+    # 흡수선 강조 (검은색)
+    ax3.plot(lam, line_conv, 'k-', lw=1.5, alpha=0.9, label="흡수선")
+    
+    # 기준선들
+    ax3.axvline(lambda0, ls="--", color='gray', alpha=0.7, label="정지 파장 λ₀")
+    ax3.axvline(lambda_now, ls="--", color='red', alpha=0.9, lw=2, label="현재 중심 파장")
+    
     ax3.set_xlabel("파장 [nm]")
     ax3.set_ylabel("상대광도 (정규화)")
     ax3.set_ylim(0, 1.1)
     ax3.grid(True, ls="--", alpha=0.4)
+    
     # 청/적 판별 텍스트
     shift_nm = lambda_now - lambda0
-    tag = "적색편이(멀어짐, +v_r)" if vr_now > 0 else "청색편이(다가옴, −v_r)" if vr_now < 0 else "편이 없음 (v_r=0)"
+    if vr_now > 0:
+        tag = "🔴 적색편이 (멀어짐, +v_r)"
+        color_tag = "red"
+    elif vr_now < 0:
+        tag = "🔵 청색편이 (다가옴, −v_r)"
+        color_tag = "blue"
+    else:
+        tag = "⚪ 편이 없음 (v_r=0)"
+        color_tag = "gray"
+    
     ax3.legend(loc="best", fontsize=9)
     ax3.text(0.02, 0.98,
              f"λ_now − λ₀ = {shift_nm:+.4f} nm\n{tag}",
              transform=ax3.transAxes, va="top", ha="left", fontsize=10,
-             bbox=dict(boxstyle="round", facecolor="white", alpha=0.7, lw=0.5))
+             bbox=dict(boxstyle="round", facecolor=color_tag, alpha=0.2, lw=1))
     st.pyplot(fig3)
 
 # 재생 모드일 때 주기적 갱신
 if use_play and st.session_state.playing:
     # 매 프레임 경과 후 즉시 재실행하여 애니메이션 효과
-    time.sleep(0.05)  # 너무 짧으면 CPU 점유↑
+    time.sleep(0.1)  # 적절한 갱신 주기
     st.rerun()
