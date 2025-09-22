@@ -27,11 +27,24 @@ def kepler_solve_E(M, e, tol=1e-10, max_iter=100):
     """평균근점이각 M → 편심근점이각 E (뉴턴-랩슨)"""
     # 초기값
     M = np.mod(M, 2*np.pi)
-    E = M if e < 0.8 else np.pi
+    # 이심률이 높을 때 더 안정적인 초기값 사용
+    if e < 0.8:
+        E = M
+    elif e < 0.99:
+        E = np.pi
+    else:
+        E = M + e*np.sin(M)  # 고이심률에서 더 나은 초기값
+    
     for _ in range(max_iter):
         f = E - e*np.sin(E) - M
         fp = 1 - e*np.cos(E)
-        dE = -f / fp
+        
+        # 분모가 0에 가까우면 안전한 스텝 사용
+        if np.abs(fp) < 1e-12:
+            dE = 0.1 * np.sign(f)
+        else:
+            dE = -f / fp
+            
         E = E + dE
         if np.max(np.abs(dE)) < tol:
             break
@@ -89,16 +102,25 @@ def instrument_broadening(line, R, lambda_grid):
        표준편차 sigma ≈ FWHM / (2*sqrt(2ln2))"""
     if R <= 0:
         return line
+    
     lam0 = np.median(lambda_grid)
     fwhm = lam0 / R
     sigma = fwhm / (2*np.sqrt(2*np.log(2)))
+    
     # 간단한 컨볼루션 (경계 효과 최소화를 위해 same 모드)
     # 커널 길이: ±5σ
     dlam = np.mean(np.diff(lambda_grid))
     half_width = int(np.ceil(5*sigma/dlam))
+    
+    # 커널 크기가 너무 작으면 원본 반환
+    if half_width < 1:
+        return line
+        
     kx = np.arange(-half_width, half_width+1) * dlam
     kernel = gaussian(kx, 0.0, sigma)
     kernel /= kernel.sum()
+    
+    # 경계 처리 개선
     return np.convolve(line, kernel, mode='same')
 
 # ---------- Streamlit UI ----------
@@ -276,7 +298,6 @@ with col1:
     ax1.grid(True, ls="--", alpha=0.4)
     ax1.legend(loc="best", fontsize=9)
     st.pyplot(fig1)
-    plt.close(fig1)
 
 # (2) RV 곡선
 with col2:
@@ -297,7 +318,6 @@ with col2:
     ax2.text(0.02, 0.98, txt, transform=ax2.transAxes, va="top", ha="left", fontsize=10,
              bbox=dict(boxstyle="round", facecolor="white", alpha=0.7, lw=0.5))
     st.pyplot(fig2)
-    plt.close(fig2)
 
 # (3) 스펙트럼
 with col3:
@@ -319,10 +339,9 @@ with col3:
              transform=ax3.transAxes, va="top", ha="left", fontsize=10,
              bbox=dict(boxstyle="round", facecolor="white", alpha=0.7, lw=0.5))
     st.pyplot(fig3)
-    plt.close(fig3)
 
 # 재생 모드일 때 주기적 갱신
 if use_play and st.session_state.playing:
     # 매 프레임 경과 후 즉시 재실행하여 애니메이션 효과
     time.sleep(0.05)  # 너무 짧으면 CPU 점유↑
-    st.experimental_rerun()
+    st.rerun()
