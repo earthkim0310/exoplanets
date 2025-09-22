@@ -39,11 +39,9 @@ def kepler_solve_E(M, e, tol=1e-10, max_iter=100):
         f = E - e*np.sin(E) - M
         fp = 1 - e*np.cos(E)
         
-        # 분모가 0에 가까우면 안전한 스텝 사용
-        if np.abs(fp) < 1e-12:
-            dE = 0.1 * np.sign(f)
-        else:
-            dE = -f / fp
+        # 분모가 0에 가까우면 안전한 스텝 사용 (배열 처리)
+        small_fp = np.abs(fp) < 1e-12
+        dE = np.where(small_fp, 0.1 * np.sign(f), -f / fp)
             
         E = E + dE
         if np.max(np.abs(dE)) < tol:
