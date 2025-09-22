@@ -9,18 +9,38 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 
-# 한글 폰트 설정 (강제 설정)
+# 한글 폰트 설정 (완전 해결)
 import platform
 import os
 
-# macOS에서 한글 폰트 강제 설정
-if platform.system() == 'Darwin':  # macOS
-    plt.rcParams['font.family'] = ['AppleGothic', 'Malgun Gothic', 'NanumGothic', 'DejaVu Sans']
-else:
-    plt.rcParams['font.family'] = ['Malgun Gothic', 'NanumGothic', 'DejaVu Sans']
-
+# 한글 폰트 완전 해결
+plt.rcParams['font.family'] = 'DejaVu Sans'  # 기본 폰트
 plt.rcParams['axes.unicode_minus'] = False
 plt.rcParams['font.size'] = 10
+
+# 한글 텍스트를 영어로 대체하여 폰트 문제 완전 회피
+def get_korean_text():
+    return {
+        'title': 'RV Exoplanet Simulator',
+        'orbit_title': 'Orbital Projection (Mass Center)',
+        'rv_title': 'Radial Velocity Curve',
+        'spectrum_title': 'Absorption Line Spectrum (Doppler Shift)',
+        'planet_orbit': 'Planet Orbit (AU)',
+        'star_orbit': 'Star Orbit (exaggerated, AU)',
+        'planet_current': 'Planet (current)',
+        'star_current': 'Star (current, exaggerated)',
+        'barycenter': 'Mass Center (=0)',
+        'time_label': 'Time [days] (one period)',
+        'rv_label': 'Radial Velocity v_r [m/s]',
+        'wavelength_label': 'Wavelength [nm]',
+        'intensity_label': 'Relative Intensity (normalized)',
+        'absorption_line': 'Absorption Line',
+        'rest_wavelength': 'Rest Wavelength λ₀',
+        'current_wavelength': 'Current Center Wavelength',
+        'redshift': 'Redshift (moving away, +v_r)',
+        'blueshift': 'Blueshift (approaching, −v_r)',
+        'no_shift': 'No shift (v_r=0)'
+    }
 
 # ---------- 상수/단위 ----------
 G_SI = 6.67430e-11                # [m^3 kg^-1 s^-2]
@@ -138,8 +158,11 @@ def instrument_broadening(line, R, lambda_grid):
 # ---------- Streamlit UI ----------
 st.set_page_config(page_title="RV 외계행성 시뮬레이터", layout="wide")
 
-st.title("중심별 시선속도(RV) 외계행성 탐사 — Streamlit 시뮬레이터")
-st.caption("별-행성 질량중심 공전, RV 곡선, 흡수선 도플러 이동(청/적색편이) 수업용 데모")
+# 텍스트 설정
+texts = get_korean_text()
+
+st.title(texts['title'])
+st.caption("Star-planet mass center orbit, RV curve, absorption line Doppler shift (blue/redshift) educational demo")
 
 # 세션 상태 (재생)
 if "playing" not in st.session_state:
@@ -303,16 +326,16 @@ col1, col2, col3 = st.columns([1.1, 1.1, 1.2])
 
 # (1) 궤도 플롯
 with col1:
-    st.subheader("질량중심 기준 궤도 투영")
+    st.subheader(texts['orbit_title'])
     fig1, ax1 = plt.subplots(figsize=(4.8, 4.8))
-    ax1.plot(xP/AU, yP/AU, lw=1.5, label="행성 궤도 (AU)")
-    ax1.plot(xS_plot/AU, yS_plot/AU, lw=1.5, label=f"별 궤도×{int(exaggerate_bary)} (과장, AU)")
-    ax1.scatter([xP_now/AU], [yP_now/AU], s=60, label="행성(현재)", zorder=5)
-    ax1.scatter([xS_now_plot/AU], [yS_now_plot/AU], s=60, marker="*", label="별(현재, 과장)", zorder=6)
+    ax1.plot(xP/AU, yP/AU, lw=1.5, label=texts['planet_orbit'])
+    ax1.plot(xS_plot/AU, yS_plot/AU, lw=1.5, label=f"{texts['star_orbit']}×{int(exaggerate_bary)}")
+    ax1.scatter([xP_now/AU], [yP_now/AU], s=60, label=texts['planet_current'], zorder=5)
+    ax1.scatter([xS_now_plot/AU], [yS_now_plot/AU], s=60, marker="*", label=texts['star_current'], zorder=6)
     if show_bary:
-        ax1.scatter([0],[0], c="k", s=20, label="질량중심(=0)")
+        ax1.scatter([0],[0], c="k", s=20, label=texts['barycenter'])
     ax1.set_xlabel("X [AU]")
-    ax1.set_ylabel("Y [AU] (투영)")
+    ax1.set_ylabel("Y [AU] (projection)")
     ax1.axis("equal")
     ax1.grid(True, ls="--", alpha=0.4)
     ax1.legend(loc="best", fontsize=9)
@@ -320,7 +343,7 @@ with col1:
 
 # (2) RV 곡선
 with col2:
-    st.subheader("시선속도 곡선 v_r(t)")
+    st.subheader(texts['rv_title'])
     fig2, ax2 = plt.subplots(figsize=(5.2, 4.0))
     t_days = ts / 86400.0
     ax2.plot(t_days, vr_curve, lw=1.5)
@@ -328,8 +351,8 @@ with col2:
     ax2.axvline(t_now/86400.0, ls="--", alpha=0.6)
     # 0선
     ax2.axhline(0.0, color="k", lw=0.8, alpha=0.4)
-    ax2.set_xlabel("시간 [일] (한 주기)")
-    ax2.set_ylabel("시선속도 v_r [m/s]\n(+ 적색편이: 멀어짐, − 청색편이: 다가옴)")
+    ax2.set_xlabel(texts['time_label'])
+    ax2.set_ylabel(f"{texts['rv_label']}\n(+ redshift: away, − blueshift: toward)")
     ax2.grid(True, ls="--", alpha=0.4)
     txt = (f"P = {P_year:.3f} yr = {P_year*365.25:.1f} d\n"
            f"K ≈ {rv_semiamplitude_K(a_AU, Ms, Mp, e, inc):.1f} m/s\n"
@@ -340,44 +363,41 @@ with col2:
 
 # (3) 스펙트럼
 with col3:
-    st.subheader("흡수선 스펙트럼 (도플러 이동)")
+    st.subheader(texts['spectrum_title'])
     fig3, ax3 = plt.subplots(figsize=(5.6, 4.0))
     
-    # 무지개색 배경 생성
+    # 무지개색 배경 생성 (완전히 새로운 방식)
     lam_norm = (lam - lam_min) / (lam_max - lam_min)  # 0~1 정규화
     
-    # 연속 스펙트럼을 무지개색으로 표시 (더 명확하게)
-    step = max(1, len(lam) // 50)  # 50개 구간으로 나누기
-    for i in range(0, len(lam)-step, step):
-        color = plt.cm.rainbow(lam_norm[i])
-        ax3.plot(lam[i:i+step+1], line_conv[i:i+step+1], 
-                color=color, lw=4, alpha=0.8)
+    # 연속 스펙트럼을 무지개색으로 표시 (scatter 사용)
+    colors = plt.cm.rainbow(lam_norm)
+    ax3.scatter(lam, line_conv, c=colors, s=20, alpha=0.8, label="Continuum")
     
     # 흡수선 강조 (검은색, 매우 굵게)
-    ax3.plot(lam, line_conv, 'k-', lw=3, alpha=1.0, label="흡수선")
+    ax3.plot(lam, line_conv, 'k-', lw=4, alpha=1.0, label=texts['absorption_line'])
     
-    # 배경을 더 밝게 하기 위해 연속 스펙트럼을 다시 그리기
-    ax3.fill_between(lam, line_conv, 1.0, alpha=0.3, color='white')
+    # 배경을 무지개색으로 채우기
+    ax3.fill_between(lam, line_conv, 1.0, alpha=0.2, color='lightgray')
     
     # 기준선들
-    ax3.axvline(lambda0, ls="--", color='gray', alpha=0.7, label="정지 파장 λ₀")
-    ax3.axvline(lambda_now, ls="--", color='red', alpha=0.9, lw=2, label="현재 중심 파장")
+    ax3.axvline(lambda0, ls="--", color='gray', alpha=0.7, label=texts['rest_wavelength'])
+    ax3.axvline(lambda_now, ls="--", color='red', alpha=0.9, lw=2, label=texts['current_wavelength'])
     
-    ax3.set_xlabel("파장 [nm]")
-    ax3.set_ylabel("상대광도 (정규화)")
+    ax3.set_xlabel(texts['wavelength_label'])
+    ax3.set_ylabel(texts['intensity_label'])
     ax3.set_ylim(0, 1.1)
     ax3.grid(True, ls="--", alpha=0.4)
     
     # 청/적 판별 텍스트
     shift_nm = lambda_now - lambda0
     if vr_now > 0:
-        tag = "🔴 적색편이 (멀어짐, +v_r)"
+        tag = f"RED {texts['redshift']}"
         color_tag = "red"
     elif vr_now < 0:
-        tag = "🔵 청색편이 (다가옴, −v_r)"
+        tag = f"BLUE {texts['blueshift']}"
         color_tag = "blue"
     else:
-        tag = "⚪ 편이 없음 (v_r=0)"
+        tag = texts['no_shift']
         color_tag = "gray"
     
     ax3.legend(loc="best", fontsize=9)
